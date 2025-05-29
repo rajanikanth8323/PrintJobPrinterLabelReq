@@ -1,0 +1,881 @@
+/**
+* @Author      :   Devindrappa
+* @description :   This class is used to handle Updates .
+* @Date        :   14/03/2023
+* @TestClass   :   PrintJobPrinterLabelRqtTest
+* */   
+public without sharing class PrintJobPrinterLabelRqt {
+    /** 
+*@description    : This method IS designed to retrieve information about label printers based on a given orderToCompany parameter
+*@param orderToCompany : parameter is to get the old Opp List of the records
+*@return :returns the list of LabelPrinter_Detail__c records.
+*/   
+    @AuraEnabled(cacheable=true) 
+    public static List<LabelPrinter_Detail__c> getLabelPrinterDetails(string orderToCompany) {
+        //  System.debug('orderToCompany////:::'+orderToCompany);
+        List<LabelPrinter_Detail__c> lablePrinter = new List<LabelPrinter_Detail__c>();  
+        try {
+            system.debug('orderToCompany>>>'+orderToCompany);      
+            NiceLabel_Request_Line__c nlli =[select id,Model__c,Order_To_Company__c from NiceLabel_Request_Line__c where NiceLabel_Request__c =: orderToCompany WITH SECURITY_ENFORCED limit 1];   
+            System.debug('nlli'+nlli);
+            List<Price_Specification_Book_Product__c> priceSpecBookProduct = [Select Id, Print_Shop__c,Order_to_Company__c from Price_Specification_Book_Product__c where Order_to_Company__c =:nlli.Order_To_Company__c AND Name =:nlli.Model__c AND Print_Shop__c<>null WITH SECURITY_ENFORCED];
+            system.debug('priceSpecBookProduct:::'+priceSpecBookProduct);
+            List<string> printShop = new List<string>();
+            for(Price_Specification_Book_Product__c p : priceSpecBookProduct){
+                printShop.add(p.Print_Shop__c);
+            }
+            system.debug('printShop::::'+printShop);
+            lablePrinter = [SELECT Id, Name,PrintJob_Supplier__c,PrintJob_Supplier__r.Name FROM LabelPrinter_Detail__c where Order_to_Company__c=:nlli.Order_To_Company__c AND PrintJob_Supplier__r.Name IN: printShop WITH SECURITY_ENFORCED ORDER BY Name ASC];
+            System.debug('lablePrinter>>>>'+lablePrinter);
+            // System.debug('lablePrinter>>>>'+lablePrinter[0].Id);
+            return lablePrinter;
+        }
+        catch(Exception e){
+            System.debug('Error from ApexController Method' + e.getMessage());    
+        }  
+        return lablePrinter;
+    }
+    
+    /** 
+*@description    : This method is used to retrieve a list of unique printer names from the LabelPrinter_Detail__c object
+*@return : returns the list of printer names.
+*/ 
+    @AuraEnabled(cacheable=true)
+    public static list<string> getLabelPrinterAllDetails() {
+        
+        List<LabelPrinter_Detail__c> printerlist= [SELECT Id, Name FROM LabelPrinter_Detail__c WITH SECURITY_ENFORCED];
+        Map<String,string> orderToCompanyMap=new Map<String,string>();
+        for( LabelPrinter_Detail__c line:printerlist){
+            orderToCompanyMap.put(line.Name,line.Name);
+        }
+        orderToCompanyMap.put('None',null);
+        list<string> printerNameList=new list<string>();
+        for( string line:orderToCompanyMap.keySet()){
+            printerNameList.add(line);
+        }
+        
+        return printerNameList;
+    }
+    /** 
+*@description    : method used to retrieve a list of unique line status options from the NiceLabel_Request_Line__c object
+*@return : returns the list of line status options.
+*/ 
+    @AuraEnabled(cacheable=true)
+    public static list<string> getLineStatusOptions() {
+        
+        List<NiceLabel_Request_Line__c> lineStatuslist= [SELECT Id, NL_Line_Status__c FROM NiceLabel_Request_Line__c WITH SECURITY_ENFORCED];
+        Map<String,string> orderToCompanyMap=new Map<String,string>();
+        for( NiceLabel_Request_Line__c line:lineStatuslist){
+            orderToCompanyMap.put(line.NL_Line_Status__c,line.NL_Line_Status__c);
+        }
+        orderToCompanyMap.put('None',null);
+        // System.debug('Line Status Options Map--> '+orderToCompanyMap);
+        list<string> lineNameList=new list<string>();
+        for( string line:orderToCompanyMap.keySet()){
+            lineNameList.add(line);
+        }
+        //  System.debug('Line Status Options list--> '+lineNameList);
+        
+        return lineNameList;
+    }
+    /** 
+*@description    : This method IS designed to retrieve records based on the parameter
+*@param selectedRowId : parameter is to get NiceLabel_Request_Line__c object Id
+*@return :returns the list of NiceLabel_Request_Line__c records.   
+*/     
+    @AuraEnabled
+    public static List<NiceLabel_Request_Line__c> getRecord(List<String> selectedRowId){
+        System.debug('Selected Row Id--> '+selectedRowId);
+        map<string,string> lineId=new map<string,string>();
+        List<NiceLabel_Request_Line__c> recData =[SELECT PDF_Batch_Id__c,Start_Num__c,Id  FROM NiceLabel_Request_Line__c WHERE PDF_Batch_Id__c=:selectedRowId ];
+        
+        for(NiceLabel_Request_Line__c n:recData){
+            lineId.put(n.PDF_Batch_Id__c,n.Id);
+        }
+        List<String> values = lineId.values();
+        //   System.debug('record Data::'+recData[0].File_Name__c);
+        // Order_Quantity__c  & Print_Quantity__c fields are replaced with Order_Quantity_Num__c & Print_Quantity_Num__c respectively in query to overcome issue of ',' in previouse fields by nagabhushana on 28-08-2024
+        List<NiceLabel_Request_Line__c> recDataList =[SELECT PDF_Batch_Id__c,Start_Num__c,Id,Name,Model__c,File_Name__c,Printer_Name__c,NL_Line_Status__c,Size__c,Barcode__c,MG_Line_ID__c,MG_Line_Number__c, NiceLabel_Request__r.Name,Product_Description__c,NiceLabel_Request__r.MG_Order_Number__c,NiceLabel_Request__r.Retailer_PO_Number__c,NiceLabel_Request__r.Order_To_Company__c,NiceLabel_Request__r.Mainetti_SO_SC__c,MG_Line_ID__r.FGItemID__c,Order_Quantity_Num__c,Printer_Status__c,Printer_Type__c,Color__c,Print_Quantity_Num__c,Retailer_Code__c,Expected_Completion_Date__c,Downloaded_Date__c,Submission_Date__c,MG_Line_ID__r.Due_Date__c,MG_Line_ID__r.Production_Status__c,MG_Line_ID__r.Online_Detail_Status__c,MG_Line_ID__r.FG_Model_Code__c,MG_Line_ID__r.Expected_Delivery_Date__c,MG_Line_ID__r.Mainetti_Model_Code__c,MG_Line_ID__r.Products__c,MG_Line_ID__r.Item_name__c,Batch_Id__c
+                                                      FROM NiceLabel_Request_Line__c WHERE Id In :values];
+        System.debug('recData::'+recData);
+        return recDataList;
+    }
+    
+    String resStatus;
+    ///open order Tab
+    /** 
+*@description    : This method is used to retrieves records of the NiceLabel_Request_Line__c object based on various criteria
+*@param  orderToCompany : parameter used to fetch the retailer code
+*@param  orderModel : parameter used to fetch the order Model
+*@param  mGOrder : parameter used to fetch the mG Order
+*@param  mainettiSO : parameter used to fetch the mainetti SO 
+*@param  pONumber : parameter used to fetch the pO Number
+*@return : returns a list of records NiceLabel_Request_Line__c
+*/ 
+    @AuraEnabled(cacheable=true)
+    public static List<NiceLabel_Request_Line__c> getOpenOrder(string orderToCompany,string orderModel,string mGOrder,string mainettiSO,string pONumber){
+        if(orderModel!=null && orderToCompany!=null  ){
+            List<NiceLabel_Request_Line__c> openOrderObj ;
+            if(NiceLabel_Request__c.SObjectType.getDescribe().isAccessible() &&NiceLabel_Request_Line__c.SObjectType.getDescribe().isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.Retailer_PO_Number__c.isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.Mainetti_SO_SC__c.isAccessible()&& Schema.SObjectType.NiceLabel_Request__c.fields.MG_Order_Number__c.isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.name.isAccessible()&& Schema.SObjectType.NiceLabel_Request__c.fields.Order_To_Company__c.isAccessible()
+               && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Name.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.model__c.isAccessible()&& Schema.SObjectType.NiceLabel_Request_Line__c.fields.Order_Quantity_Num__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.NL_Line_Status__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Printer_Type__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.QC_Passed__c.isAccessible()&& Schema.SObjectType.NiceLabel_Request_Line__c.fields.Printer_Type__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Barcode__c.isAccessible()
+               
+              ) { // Order_Quantity__c  & Print_Quantity__c fields are replaced with Order_Quantity_Num__c & Print_Quantity_Num__c respectively in query to overcome issue of ',' in previouse fields by nagabhushana on 28-08-2024
+                  openOrderObj= [select NiceLabel_Request__r.Retailer_PO_Number__c,NiceLabel_Request__r.Mainetti_SO_SC__c,NiceLabel_Request__r.MG_Order_Number__c,NiceLabel_Request__r.name ,NiceLabel_Request__r.Order_To_Company__c ,Name ,model__c,Order_Quantity_Num__c,NL_Line_Status__c,Barcode__c,Printer_Type__c,QC_Passed__c,Printer_Status__c,Print_Quantity_Num__c,Expected_Completion_Date__c,Retailer_Code__c, Ship_to_Country__c,Submission_Date__c,Size__c,MG_Line_Number__c from NiceLabel_Request_Line__c
+                                 WHERE  (NiceLabel_Request__r.Order_To_Company__c LIKE : orderToCompany) AND (model__c LIKE: OrderModel) AND (NL_Line_Status__c=:'Open') limit 70  ];
+                  
+              }
+            return openOrderObj;
+        }
+        else if(orderModel!=null || orderToCompany!=null|| pONumber!=null|| mainettiSO!=null|| mGOrder!=null || orderModel!=null) {
+            List<NiceLabel_Request_Line__c> openOrderObj;
+            if(NiceLabel_Request__c.SObjectType.getDescribe().isAccessible() &&NiceLabel_Request_Line__c.SObjectType.getDescribe().isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.Retailer_PO_Number__c.isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.Mainetti_SO_SC__c.isAccessible()&& Schema.SObjectType.NiceLabel_Request__c.fields.MG_Order_Number__c.isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.name.isAccessible()&& Schema.SObjectType.NiceLabel_Request__c.fields.Order_To_Company__c.isAccessible()
+               && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Name.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.model__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Order_Quantity_Num__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.NL_Line_Status__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Printer_Type__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.QC_Passed__c.isAccessible()&& Schema.SObjectType.NiceLabel_Request_Line__c.fields.Printer_Type__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Barcode__c.isAccessible()
+               
+              ) {  // Order_Quantity__c  & Print_Quantity__c fields are replaced with Order_Quantity_Num__c & Print_Quantity_Num__c respectively in query to overcome issue of ',' in previouse fields by nagabhushana on 28-08-2024
+                  openOrderObj= [select NiceLabel_Request__r.Retailer_PO_Number__c,NiceLabel_Request__r.Mainetti_SO_SC__c,NiceLabel_Request__r.MG_Order_Number__c,NiceLabel_Request__r.Name ,NiceLabel_Request__r.Order_To_Company__c ,Name ,model__c,Order_Quantity_Num__c,NL_Line_Status__c,Barcode__c,Printer_Type__c,QC_Passed__c,Printer_Status__c,Print_Quantity_Num__c,Expected_Completion_Date__c,Retailer_Code__c, Ship_to_Country__c,Submission_Date__c,Size__c,MG_Line_Number__c from NiceLabel_Request_Line__c
+                                 WHERE ((NiceLabel_Request__r.Order_To_Company__c LIKE : orderToCompany) OR (NiceLabel_Request__r.Retailer_PO_Number__c LIKE: pONumber) OR  (NiceLabel_Request__r.MG_Order_Number__c LIKE: mGOrder) OR  (NiceLabel_Request__r.Mainetti_SO_SC__c LIKE: mainettiSO) OR (model__c LIKE: orderModel ))  AND (NL_Line_Status__c=:'Open') ];
+                  
+              } 
+            return openOrderObj;
+        }
+        else  {
+            List<NiceLabel_Request_Line__c> openOrderObj;
+            if(NiceLabel_Request__c.SObjectType.getDescribe().isAccessible() &&NiceLabel_Request_Line__c.SObjectType.getDescribe().isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.Retailer_PO_Number__c.isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.Mainetti_SO_SC__c.isAccessible()&& Schema.SObjectType.NiceLabel_Request__c.fields.MG_Order_Number__c.isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.name.isAccessible()&& Schema.SObjectType.NiceLabel_Request__c.fields.Order_To_Company__c.isAccessible()
+               && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Name.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.model__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Order_Quantity_Num__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.NL_Line_Status__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Printer_Type__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.QC_Passed__c.isAccessible()&& Schema.SObjectType.NiceLabel_Request_Line__c.fields.Printer_Type__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Barcode__c.isAccessible()
+               
+              ) { // Order_Quantity__c  & Print_Quantity__c fields are replaced with Order_Quantity_Num__c & Print_Quantity_Num__c respectively in query to overcome issue of ',' in previouse fields by nagabhushana on 28-08-2024
+                  openOrderObj = [select NiceLabel_Request__r.Retailer_PO_Number__c,NiceLabel_Request__r.Mainetti_SO_SC__c,NiceLabel_Request__r.MG_Order_Number__c,NiceLabel_Request__r.Name ,NiceLabel_Request__r.Order_To_Company__c ,Name ,model__c,Order_Quantity_Num__c,NL_Line_Status__c,Barcode__c,Printer_Type__c,QC_Passed__c,Printer_Status__c,Print_Quantity_Num__c,Expected_Completion_Date__c,Retailer_Code__c, Ship_to_Country__c,Submission_Date__c,Size__c,MG_Line_Number__c from NiceLabel_Request_Line__c where NL_Line_Status__c='Open' ORDER BY NiceLabel_Request__r.MG_Order_Number__c DESC ];
+                  
+              }
+            return openOrderObj;
+        }
+        
+    }
+    
+    /** 
+*@description    : This method is used to retrieve a list of records from NiceLabel_Request_Line__c object
+*@return : returns the list of NiceLabel_Request__c records
+*/     
+    
+    @AuraEnabled(cacheable=true)
+    public static List<NiceLabel_Request__c> getWireOpenOrderForCarelabel(){
+        // Order_Quantity__c  & Print_Quantity__c fields are replaced with Order_Quantity_Num__c & Print_Quantity_Num__c respectively in query to overcome issue of ',' in previouse fields by nagabhushana on 28-08-2024
+        List<NiceLabel_Request_Line__c> openOrderLineList = [select NiceLabel_Request__r.Id,Name ,model__c,NL_Line_Status__c,Barcode__c,Printer_Type__c,QC_Passed__c,Printer_Status__c,Print_Quantity_Num__c,Expected_Completion_Date__c,Retailer_Code__c, Ship_to_Country__c,Submission_Date__c,Size__c,MG_Line_Number__c,Sheet_No__c from NiceLabel_Request_Line__c where (NL_Line_Status__c IN ('Open','Pending','QC Reprint')) AND (Sheet_No__c !=null)];
+        //  System.debug('openOrderLineList values-->'+openOrderLineList); 
+        set<Id> requestIds=new set<Id>();
+        for(NiceLabel_Request_Line__c q:openOrderLineList){
+            requestIds.add(q.NiceLabel_Request__r.Id);
+        }
+        List<NiceLabel_Request__c> openOrderObj = [select Expected_Completion_Date__c,Retailer_Code__c,MG_Order_Number__c, Order_To_Company__c,Retailer_PO_Number__c,Mainetti_SO_SC__c,Name,MG_Order_Status__c,MG_Order_Date__c  from NiceLabel_Request__c WHERE MG_Order_Status__c IN ('Open','Order Received','Pending Download','WIP Order') And Id In:requestIds];
+        return openOrderObj;
+    }
+    
+    /** 
+*@description    : This method is used for formatting and adjusting the length of a serial number based on the specified parameters
+*@param  print1 : A string that is presumably the initial value for the serial number.
+*@param  fieldlen :An Integer representing the length of the initial field.
+*@param  len : An Integer representing the desired length of the combined serial number.
+*@return : returns the formatted and combined serial number.
+*/ 
+    //Serial Number Combine
+    public static String serialNumbCombined(String print1, Integer fieldlen, Integer len) {
+        String serialCombined = print1.substring(0,fieldlen);
+        Integer toAdd = len - serialCombined.length();
+        serialCombined = serialCombined.leftPad((serialCombined.length()+toAdd), '0');
+        return serialCombined;
+        
+    }
+    
+    ////////////////////DownLoaded File Status Update in lineItem////////////////////
+    /** 
+*@description    : This methoed is used to retrieve list of records of type NiceLabel_Request_Line__c based on the provided value for the Parent_Line__c field.
+*@param  selectedOrderId : parameter is to get NiceLabel_Request_Line__c Id
+*@return :  NiceLabel_Request_Line__c object.
+*/  
+    @AuraEnabled
+    public static void fetchItemStatusUpdate(List<string> selectedOrderId){
+        System.debug('selectedOrderId'+selectedOrderId);
+        Date dToday = Date.today();
+        set<id> orderIds=new set<id>();
+        List<NiceLabel_Request_Line__c> nicereq = [Select Id,Name,NL_Line_Status__c,NiceLabel_Request__c  from NiceLabel_Request_Line__c where Id=:selectedOrderId AND NL_Line_Status__c != 'Open'];
+        for(NiceLabel_Request_Line__c line : nicereq){
+            line.NL_Line_Status__c='Received';
+            line.Downloaded_Date__c=dToday;
+            orderIds.add(line.NiceLabel_Request__c);
+        }
+        if(NiceLabel_Request_Line__c.sObjectType.getDescribe().isAccessible() && 
+           Schema.sObjectType.NiceLabel_Request_Line__c.isUpdateable()) {
+               update nicereq;
+           }
+        
+        
+        map<Id,list<string>> listOfLines=new   map<Id,List<string>>();
+        List<NiceLabel_Request__c> parentList = [select Id,(select Id ,NL_Line_Status__c From NiceLabel_Request_Lines__r) from NiceLabel_Request__c where Id In:orderIds];
+        System.debug('parentList'+parentList);
+        
+        PrintJobPrinterLabelRqt.parentUpdate(parentList);
+    }
+    
+    ///based on line(NiceLabel_Request_Line__c) status we are updating Order(NiceLabel_Request__c) 
+    public static void parentUpdate(List<NiceLabel_Request__c> parentList){
+        List<NiceLabel_Request__c> updateList=new List<NiceLabel_Request__c>();
+        for (NiceLabel_Request__c parentRecord : parentList) {
+            System.debug('parentRecord'+parentRecord.Id);
+            Boolean openValue=false;
+            Boolean underManufacturing=false;
+            Boolean statusPening = false;
+            
+            
+            
+            
+            // Access child records related to the parent record
+            List<NiceLabel_Request_Line__c> childRecords = parentRecord.NiceLabel_Request_Lines__r;
+            
+            // Iterate through child records
+            for (NiceLabel_Request_Line__c n : childRecords) {
+                if(n.NL_Line_Status__c=='Open'||n.NL_Line_Status__c=='QC Reprint'){
+                    openValue=true;
+                }else if(n.NL_Line_Status__c=='Pending'){
+                    statusPening = true;
+                }else{
+                    underManufacturing=true; 
+                } 
+            } 
+            NiceLabel_Request__c line=new NiceLabel_Request__c(Id=parentRecord.Id);
+            System.debug('openValue  '+openValue+' underManufacturing '+underManufacturing);
+            if(statusPening == true){
+                line.MG_Order_Status__c='Pending Download';  
+            }else if(openValue==true&&underManufacturing==false || openValue==true&&underManufacturing==true){
+                
+                line.MG_Order_Status__c='Open';
+            }else if(openValue==false && underManufacturing==True){
+                line.MG_Order_Status__c='Under Manufacturing';  
+            }
+            updateList.add(line);
+            System.debug('updateList  '+updateList);
+            
+        } 
+        
+        update updateList; 
+        
+    }
+    
+    
+    @AuraEnabled(cacheable=true)
+    public static List<NiceLabel_Request__c> getWireOpenOrder(){
+        List<NiceLabel_Request__c> openOrderObj;
+        try{
+            Id UserId=UserInfo.getUserId();
+            System.debug('UserId>>>>>>>>>>>'+UserId);
+            User currenruser = [SELECT Id,ContactId,Contact.Name,Contact.AccountId,Contact.Account.PrintShop__c,Contact.Customer_Information__c FROM User WHERE Id=:UserId LIMIT 1];
+            System.debug('::::currenruser:::::'+currenruser.Contact.Account.PrintShop__c);
+            System.debug('::::currenruser:::::'+currenruser.Contact);
+            if(currenruser.Contact.Account.PrintShop__c == null){
+                List<NiceLabel_Request_Line__c> openOrderLineList2 = [select id from NiceLabel_Request_Line__c];
+                system.debug('openOrderLineList2::::::'+openOrderLineList2);
+                
+                // Order_Quantity__c  & Print_Quantity__c fields are replaced with Order_Quantity_Num__c & Print_Quantity_Num__c respectively in query to overcome issue of ',' in previouse fields by nagabhushana on 28-08-2024 
+                List<NiceLabel_Request_Line__c> openOrderLineList = [select Downloaded_Date__c,NiceLabel_Request__r.Retailer_Code__c,NiceLabel_Request__r.Id,Name ,model__c,Order_Quantity_Num__c,NL_Line_Status__c,Barcode__c,Printer_Type__c,QC_Passed__c,Printer_Status__c,Print_Quantity_Num__c,Expected_Completion_Date__c,Retailer_Code__c, Ship_to_Country__c,Submission_Date__c,Size__c,MG_Line_Number__c,Sheet_No__c from NiceLabel_Request_Line__c where (NL_Line_Status__c IN ('Open','Pending','QC Reprint')) AND (Sheet_No__c IN (null,''))];
+                set<Id> requestIds=new set<Id>();
+                for(NiceLabel_Request_Line__c q:openOrderLineList){
+                    requestIds.add(q.NiceLabel_Request__r.Id);
+                }
+                System.debug('openOrderLineList::'+openOrderLineList);
+                openOrderObj = [select  Expected_Completion_Date__c,Retailer_Code__c,MG_Order_Number__c, Order_To_Company__c,Retailer_PO_Number__c,Mainetti_SO_SC__c,Name,MG_Order_Status__c,MG_Order_Date__c  from NiceLabel_Request__c
+                                WHERE MG_Order_Status__c IN ('Open','Order Received','WIP Order','Pending Download') And Id In:requestIds ORDER BY MG_Order_Number__c DESC];
+                System.debug('openOrderObj::'+openOrderObj);
+            }else{
+                // User currenruser = [SELECT Id,ContactId,Contact.Name,Contact.AccountId,Contact.Account.PrintShop__c,Contact.Customer_Information__c FROM User WHERE Id=:UserId LIMIT 1];
+                System.debug('currenruser>>>>>>>>>'+currenruser);
+                
+                //added by devindrappa on 22/04/2025 For Non decathlon project, printshop Community Site
+                Account acclist = [SELECT Id,Name,PrintShop__c FROM Account WHERE Id =:currenruser.Contact.AccountId LIMIT 1];
+                System.debug('acclist>>>>>>>>>>>>'+acclist);
+                System.debug('acclist.PrintShop__c>>'+acclist.PrintShop__c);
+                Set<Id> SOLIIDSet = new Set<Id>();
+                List<Sales_Order__c> soList = New List<Sales_Order__c>();
+                soList = [Select Id,Name,Expected_Completion_Date__c,Order_Number__c,CreatedDate,LastModifiedDate,Retailer__c,Retailer_Contact__c,Status__c,Supplier__c,Retailer__r.Name,Retailer_Code1__r.Name,Retailer_Contact__r.Name,Supplier__r.Name,Tag_Type__c,                      
+                          (Select Id,Name,CreatedDate,Expected_Completion_Date__c,LastModifiedDate,Quantity__c,Supply_Quantity__c,Products__c,Products__r.Name,APN__c,CareLabel_Azure_Url__c,CARELABEL_URL_CARE__c,Sheet_Number__c,DEPT_DESC__c,Style_No__c,Colour__c,Size__c,Status__c,Due_Date_TXT__c,LOCN_TXT__c,Online_Detail_Status__c,Production_Status__c,Is_Downloaded__c from Sales_Order_Line_Items__r where Printshop_Pick__c =: acclist.PrintShop__c) from Sales_Order__c where Id In (select Sales_Order__c from Sales_Order_Line_Items__c where Printshop_Pick__c =: acclist.PrintShop__c)                          order by CreatedDate desc];     
+                set<id> soSet = new set<id>();
+                for(Sales_Order__c soIds : soList){
+                    soSet.add(soIds.Id);
+                }
+                if(soList.size() > 0){
+                    openOrderObj = [select  Expected_Completion_Date__c,MG_Order_ID__c,Retailer_Code__c,MG_Order_Number__c, Order_To_Company__c,Retailer_PO_Number__c,Mainetti_SO_SC__c,Name,MG_Order_Status__c,MG_Order_Date__c  from NiceLabel_Request__c
+                                    WHERE MG_Order_Status__c IN ('Open','Order Received','WIP Order','Pending Download') And MG_Order_ID__c IN :soSet ORDER BY MG_Order_Number__c DESC];
+                    System.debug('openOrderObj::'+openOrderObj);
+                }
+                
+            }
+            
+        }catch(Exception ex){
+            System.debug('openOrderObj::::::'+ex.getmessage());
+        }
+        
+        return openOrderObj;
+    }
+    
+    
+    /** 
+*@description    : Method used to retrieve a list of NiceLabel_Request_Line__c records based on a given requestId as parameter
+*@param  requestId : parameter is to get requestId
+*@return : returns the list of NiceLabel_Request_Line__c records.
+*/ 
+    
+    @AuraEnabled(cacheable=true)
+    public static List<NiceLabel_Request_Line__c> getLineList(string requestId){
+        //System.debug('requestId><>><'+requestId);
+        List<NiceLabel_Request_Line__c> openOrderObj;
+        if(NiceLabel_Request__c.SObjectType.getDescribe().isAccessible() &&NiceLabel_Request_Line__c.SObjectType.getDescribe().isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.Retailer_PO_Number__c.isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.Mainetti_SO_SC__c.isAccessible()&& Schema.SObjectType.NiceLabel_Request__c.fields.MG_Order_Number__c.isAccessible() && Schema.SObjectType.NiceLabel_Request__c.fields.name.isAccessible()&& Schema.SObjectType.NiceLabel_Request__c.fields.Order_To_Company__c.isAccessible()
+           && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Batch_Id__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Name.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.model__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Order_Quantity_Num__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.NL_Line_Status__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Printer_Type__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.QC_Passed__c.isAccessible()&& Schema.SObjectType.NiceLabel_Request_Line__c.fields.Printer_Type__c.isAccessible() && Schema.SObjectType.NiceLabel_Request_Line__c.fields.Barcode__c.isAccessible()&& Schema.SObjectType.NiceLabel_Request_Line__c.fields.Batch_Processing__c.isAccessible()
+           
+          ) { // Order_Quantity__c  & Print_Quantity__c fields are replaced with Order_Quantity_Num__c & Print_Quantity_Num__c respectively in query to overcome issue of ',' in previouse fields by nagabhushana on 28-08-2024 
+              openOrderObj = [select File_Name__c,MG_Line_ID__r.Order_Line_Number__c,Start_Num__c,Batch_Id__c,Downloaded_Date__c,NiceLabel_Request__r.Retailer_PO_Number__c,NiceLabel_Request__r.Mainetti_SO_SC__c,NiceLabel_Request__r.MG_Order_Number__c,NiceLabel_Request__r.name ,NiceLabel_Request__r.Order_To_Company__c ,NiceLabel_Request__r.Id,Name ,model__c,Order_Quantity_Num__c,NL_Line_Status__c,Barcode__c,Printer_Type__c,QC_Passed__c,Printer_Status__c,Print_Quantity_Num__c,Expected_Completion_Date__c,Retailer_Code__c, Ship_to_Country__c,Batch_Processing__c,Submission_Date__c,Size__c,MG_Line_Number__c,Order_To_Company__c,Printer_Name__c,MG_Line_ID__c,PDF_Batch_Id__c from NiceLabel_Request_Line__c where  NiceLabel_Request__r.Id=: requestId AND NL_Line_Status__c != 'Received' AND NL_Line_Status__c != 'Order Completed' ORDER BY Batch_Id__c ASC];
+              
+          }
+        System.debug('openOrderObj><>><'+openOrderObj);
+        return openOrderObj;
+        
+        
+    }
+    
+    /** 
+*@description    : Method to send order status from MagNET to Decathlon API as Confirm or Produce 
+*@param  requestIds : parameter is to get NiceLabel_Request__c Ids
+*@param  printerName : parameter is to get selected Printer Name
+*@param  seperateCSV : parameter gets a boolen value baned on seperateCSV.
+*@return : returns Batch Id.
+*/    
+    @AuraEnabled
+    public static String getRequestValue(List<String> lineItemIdList,string printerName,boolean seperateCSV){
+        system.debug('lineItemIdList'+lineItemIdList.size());
+        system.debug('printerName'+printerName+'::seperateCSV::'+seperateCSV);
+        Boolean createFOldeR=false;
+        string batchId;
+        Boolean qcCheck=false;
+        string folderName='';
+        List<String> res = printerName.split(' ');
+        for(String s:res){
+            folderName+=s+'_';            
+        } 
+        createFOldeR = PrintJobPrinterLabelRqt.azureFolderCheck(printerName, folderName);
+        
+        Boolean fromOpenOrder = true;
+        
+        if(createFOlder){
+            
+            string fileName=generateBatchId();
+            batchId=fileName;
+            List<NiceLabel_Request_Line__c> lineItemList = getLabelPrinterReqLinesList(lineItemIdList,batchId);
+            Set<Id> reqIds = new Set<Id>();
+            
+            System.debug('batchId::::'+batchId);
+            List<String> pDFBatchIdsList = new List<String>();  
+            for(NiceLabel_Request_Line__c line : lineItemList){ 
+                reqIds.add(line.NiceLabel_Request__c);
+            }            
+            System.debug('reqIds'+reqIds);
+            List<NiceLabel_Request__c> reqList = new List<NiceLabel_Request__c>();
+            for(Id request : reqIds){
+                NiceLabel_Request__c req = new NiceLabel_Request__c();
+                req.Id = request;
+                if(seperateCSV == true){
+                    req.MG_Order_Status__c = 'WIP Order';
+                }else{
+                    req.MG_Order_Status__c = 'Pending Download';
+                }
+                reqList.add(req);
+            }
+            System.debug('reqList'+reqList);
+            update reqList;
+            Boolean bulktrue=true;
+            Integer startRange=0;	
+            Integer runningSerial = 0;
+            if(seperateCSV == true){
+                system.debug('This is Separate CSV Calling Decathlon Normal Btch Class');
+                if(lineItemList != null && String.IsNotBlank(printerName) && String.IsNotBlank(folderName)){
+                    PrintJobCSVGenerationBatch batchStart = new PrintJobCSVGenerationBatch(lineItemList, fromOpenOrder,printerName,folderName,qcCheck,runningSerial);
+                    Database.executeBatch(batchStart,2000); 
+                }else{
+                    System.debug('Missing Required Parameter:::::');
+                }
+            }else{
+                system.debug('This is Merge CSV Calling Decathlon Normal Bulk Batch Class');
+                muhlbauerPrinterLineItemsUpdate(lineItemIdList,batchId,printerName);
+                // PrintJobCSVGenerationBulkBatch batchStart = new PrintJobCSVGenerationBulkBatch(lineItemList, fromOpenOrder,bulktrue,startRange,printerName,lineItemList,fileName,batchId,folderName);
+                //  Database.executeBatch(batchStart,2000);
+            }
+        } 
+        return batchId;
+    }
+    
+    public static String muhlbauerPrinterLineItemsUpdate(List<String> selectedLineIds, String batchId, String printerName){
+        System.debug('selectedLineIds::'+selectedLineIds+ '::batchId::'+batchId+'::printerName::'+printerName);
+        //Query to get the selected Line items
+        List<NiceLabel_Request_Line__c> rqtLineList = [Select Id,NiceLabel_Request__r.Name,NL_Line_Status__c,Batch_Id__c FROM NiceLabel_Request_Line__c WHERE Id IN :selectedLineIds];
+        System.debug('rqtLineList::'+rqtLineList);
+        String paramss1 = printerName + '_' + batchId + '_New';
+        String fileName = paramss1.replaceAll(' ', '_');
+        System.debug('fileName:'+fileName);
+        //Get export report id
+        
+        if(rqtLineList.size()>0){
+            for(NiceLabel_Request_Line__c reqLine : rqtLineList){
+                reqLine.Printer_Name__c = printerName;
+                reqLine.NL_Line_Status__c = 'Pending';
+                reqLine.Batch_Processing__c = false;
+                reqLine.Batch_Id__c = batchId;
+                reqLine.PDF_Batch_Id__c = batchId;
+                reqLine.File_Name__c = fileName;
+            }
+            update rqtLineList;
+            System.debug('rqtList:'+rqtLineList);
+        }      
+        
+        return 'Success';
+    }
+    public static List<NiceLabel_Request_Line__c> getLabelPrinterReqLinesList(List<String> lineIds,String batchId){
+        // Order_Quantity__c  & Print_Quantity__c fields are replaced with Order_Quantity_Num__c & Print_Quantity_Num__c respectively in query to overcome issue of ',' in previouse fields by nagabhushana on 28-08-2024 
+        List<NiceLabel_Request_Line__c> lineItemList =[Select Id,Name,PDF_Batch_Id__c,MG_Line_Number__c,Model__c,CSV_Demiliter__c,Size__c, NL_Line_Status__c, Parent_Line__c,Parent_Line__r.Order_Quantity_Num__c,Parent_Line__r.Print_Quantity_Num__c, Barcode_Printshop__c,Item_description__c,Item__c,Template_ID__c,Item_Desc_MGLI__c,Size_Range__c,Fineline__c,Class__c,Retailer_Code__c,Header__c,Filter__c,Partition__c,Company_prefix__c,Barcode__c,Print_Quantity_Num__c,Start_Num__c,NiceLabel_Request__r.Id,NiceLabel_Request__r.Retailer_PO_Number__c,MG_Line_ID__r.FGItemID__c,Order_Quantity_Num__c,Parent_Line__r.Failed_Quantities__c,Ship_to_Country__c,MG_Line_ID__c,Style__c,SKU__c,Product_Description__c,Color__c,Season__c,Retail_Price__c,CC__c,Sheet_No__c,Printer_Name__c,Batch_Processing__c,Batch_Id__c,NiceLabel_Request__c,MG_No__c,MG_Order_Line_No__c,Label_Layout_Code__c,Label_Layout_Code_NF__c,Department__c,Brand__c,Retailer_Code_NF__c,Item_ID__c,Comment__c,Style_Description__c,Country__c FROM NiceLabel_Request_Line__c WHERE Id IN :lineIds AND NL_Line_Status__c IN ('Open','QC Reprint') Order by NiceLabel_Request__c, Model__c];
+        
+        for(NiceLabel_Request_Line__c lineList : lineItemList){
+            lineList.PDF_Batch_Id__c = batchId;
+            lineList.Batch_Processing__c=true;
+        }
+        update lineItemList;
+        return lineItemList;
+    }
+    public static Boolean azureFolderCheck(String printerName, String folderName ){
+        
+        Boolean createFOlder = false;
+        List<LabelPrinter_Detail__c> labelPrinterDetail = [Select Id, Name, Folder_Created__c,Single_Quote_Conversion__c from LabelPrinter_Detail__c Where Name=:printerName WITH SECURITY_ENFORCED];  
+        system.debug('labelPrinterDetail'+labelPrinterDetail);
+        System.debug('labelPrinterDetail[0].Single_Quote_Conversion__c:::::'+labelPrinterDetail[0].Single_Quote_Conversion__c);
+        //  Boolean singleQuoteConversion = labelPrinterDetail[0].Single_Quote_Conversion__c;
+        
+        //Checking the Folder is Created or Not
+        // Boolean createFOlder=false;
+        if(labelPrinterDetail[0].Folder_Created__c == false){
+            createFOlder=PrintAzureFolderCheck.createFolderRequest(folderName);
+            labelPrinterDetail[0].Folder_Created__c = true;
+            if(LabelPrinter_Detail__c.sObjectType.getDescribe().isAccessible() && 
+               Schema.sObjectType.LabelPrinter_Detail__c.isUpdateable()) {
+                   update labelPrinterDetail;
+               }
+        }else{
+            createFOlder=true; 
+        }
+        
+        return createFOlder;
+        
+    }
+    
+    @AuraEnabled
+    public static String generateBatchId(){
+        
+        TimeZone tz = UserInfo.getTimeZone();
+        DateTime dt = Datetime.now();
+        string dateT=string.valueOf(dt);
+        dateT = dateT.replaceAll('-','');
+        dateT = dateT.replaceAll(' ','');
+        dateT = dateT.replaceAll(':','');
+        
+        return dateT;
+    }
+    
+    /** 
+*@description    : Method retrieves a list of records of the NiceLabel_Request_Line__c object
+*@param  requestIds : parameter is to get NiceLabel_Request_Line__c Ids
+*@return : returns Batch Id.
+*/  
+    public static List<NiceLabel_Request_Line__c> getLabelPrinterReqLineList(Set<Id> requestIds){
+        // Order_Quantity__c  & Print_Quantity__c fields are replaced with Order_Quantity_Num__c & Print_Quantity_Num__c respectively in query to overcome issue of ',' in previouse fields by nagabhushana on 28-08-2024
+        List<NiceLabel_Request_Line__c> lineItemList =[Select Id,MG_Line_Number__c,Model__c,CSV_Demiliter__c,Size__c, NL_Line_Status__c, Parent_Line__c,Parent_Line__r.Order_Quantity_Num__c,Parent_Line__r.Print_Quantity_Num__c, Barcode_Printshop__c,Item_description__c,Item__c,Template_ID__c,Item_Desc_MGLI__c,Size_Range__c,Fineline__c,Class__c,Retailer_Code__c,Header__c,Filter__c,Partition__c,Company_prefix__c,Barcode__c,Print_Quantity_Num__c,Start_Num__c,NiceLabel_Request__r.Id,NiceLabel_Request__r.Retailer_PO_Number__c,MG_Line_ID__r.FGItemID__c,Order_Quantity_Num__c,Parent_Line__r.Failed_Quantities__c,Ship_to_Country__c,MG_Line_ID__c,Style__c,SKU__c,Product_Description__c,Color__c,Season__c,Retail_Price__c,CC__c,Sheet_No__c,Printer_Name__c,Batch_Processing__c,Batch_Id__c FROM NiceLabel_Request_Line__c WHERE NiceLabel_Request__c IN :requestIds AND NL_Line_Status__c IN ('Open','QC Reprint') Order by NiceLabel_Request__c, Model__c];
+        return lineItemList;
+    }
+    /** 
+*@description    : Method retrieves a list of records of the NiceLabel_Request_Line__c object
+*@param  requestIds : parameter is to get NiceLabel_Request_Line__c Ids
+*@return : returns Batch Id.
+**/ 
+    @AuraEnabled
+    public static list<String> getBatchId(List<Id> selectedLineId) {
+        System.debug('selectedLineId:::'+selectedLineId);
+        list<string> batchIds = new list<string>();
+        set<string> setIds = new set<string>();
+        List<NiceLabel_Request_Line__c> lineItemList = [SELECT Id,PDF_Batch_Id__c, Batch_Id__c FROM NiceLabel_Request_Line__c WHERE Id IN :selectedLineId Order by Batch_Id__c];
+        System.debug('lineItemList:::'+lineItemList);
+        for (NiceLabel_Request_Line__c line : lineItemList) {
+            setIds.add(line.PDF_Batch_Id__c);
+        }
+        for (string line : setIds) {
+            batchIds.add(line);
+        }
+        System.debug('batchIds::::'+batchIds);
+        return batchIds;
+    } 
+    
+    @AuraEnabled
+    public static Map<String,List<String>> handleParentData(String selectedOrderIds){
+        System.debug('selectedOrderIds::'+selectedOrderIds);
+        List<NiceLabel_Request_Line__c> rqtList=[Select Id,NiceLabel_Request__r.Name,NL_Line_Status__c,Batch_Id__c FROM NiceLabel_Request_Line__c WHERE NiceLabel_Request__c =:selectedOrderIds AND (NL_Line_Status__c ='Open' OR NL_Line_Status__c = 'QC Reprint' OR NL_Line_Status__c = 'Pending') AND Batch_Processing__c=false];
+        System.debug('rqtList::'+rqtList);
+        Map<String,List<String>> returnParentMap = New Map<String,List<String>>();
+        List<String> requestLineId = new List<String>();
+        for(NiceLabel_Request_Line__c reqLine : rqtList){
+            requestLineId.add(reqLine.Id);
+        }
+        if(returnParentMap.containskey(selectedOrderIds)){
+            List<String> existingLineList = returnParentMap.get(selectedOrderIds);
+            existingLineList.clear();
+            returnParentMap.put(selectedOrderIds,requestLineId);
+        }else{
+            returnParentMap.put(selectedOrderIds,requestLineId);
+        }
+        System.debug('requestLineId::::'+requestLineId);
+        System.debug('returnParentMap::::'+returnParentMap);
+        return returnParentMap;
+    }
+    
+    @AuraEnabled
+    public static List<NiceLabel_Request_Line__c> getlineitems(list<String> allLineIds){
+        List<NiceLabel_Request_Line__c> rqtList=[Select Id,NiceLabel_Request__r.Name,NL_Line_Status__c,Batch_Id__c,Printer_Name__c FROM NiceLabel_Request_Line__c WHERE Id =:allLineIds];
+        System.debug('rqtList::'+rqtList);
+        return rqtList;  
+    }
+    @AuraEnabled
+    public static Map<String,String> muhlbauerprinterDownloadCSVANDPDFBulk(list<String> allLineIds){
+        System.debug('allLineIds::::');
+        set<String> batchIds = new set<String>();
+        Map<String,String> batchIdsAndCSVDataMap = new Map<String,String>();
+        List<NiceLabel_Request_Line__c> line1 = [Select Id,Batch_Id__c,File_Name__c from NiceLabel_Request_Line__c where Id In:allLineIds AND NL_Line_Status__c = 'Pending'];      
+        for(NiceLabel_Request_Line__c getBatchIds : line1){
+            System.debug('getBatchIds:::::'+getBatchIds);
+            batchIds.add(getBatchIds.Batch_Id__c+'#'+getBatchIds.File_Name__c);
+        }
+        for(String batch : batchIds){
+            System.debug('batch:::'+batch);
+            String[] parts = batch.split('#');
+            String batchId = parts[0];
+            System.debug('batchId:::'+batchId);
+            String csvData = downloadMuhlbauerPrinterCSVandPDF(batchId);
+            batchIdsAndCSVDataMap.put(batch,csvData);
+        }
+        System.debug('batchIdsAndCSVDataMap::::'+batchIdsAndCSVDataMap);
+        return batchIdsAndCSVDataMap;
+    }
+    
+    @AuraEnabled
+    public static String downloadMuhlbauerPrinterCSVandPDF(String batchNo){
+        System.debug('batchNo::::'+batchNo);
+        // Order_Quantity__c  & Print_Quantity__c fields are replaced with Order_Quantity_Num__c & Print_Quantity_Num__c respectively in query to overcome issue of ',' in previouse fields by nagabhushana on 28-08-2024
+        List<NiceLabel_Request_Line__c> line = [Select Id,NiceLabel_Request__c,MG_Line_Number__c,Printer_Name__c,Model__c,CSV_Demiliter__c,Size__c, NL_Line_Status__c, Parent_Line__c,Parent_Line__r.Order_Quantity_Num__c,Parent_Line__r.Print_Quantity_Num__c, Barcode_Printshop__c,Item_description__c,Item__c,Template_ID__c,Item_Desc_MGLI__c,Size_Range__c,Fineline__c,Class__c,Retailer_Code__c,Header__c,Filter__c,Partition__c,Company_prefix__c,Barcode__c,Print_Quantity__c,Print_Quantity_Num__c,Start_Num__c,NiceLabel_Request__r.Id,NiceLabel_Request__r.Retailer_PO_Number__c,MG_Line_ID__r.FGItemID__c,Order_Quantity_Num__c,Parent_Line__r.Failed_Quantities__c,Ship_to_Country__c,MG_Line_ID__c,Style__c,SKU__c,Product_Description__c,Color__c,Season__c,Retail_Price__c,CC__c,Sheet_No__c,MuehlbauerPrintJobId__c,Batch_Id__c from NiceLabel_Request_Line__c where Batch_Id__c =:batchNo AND NL_Line_Status__c = 'Pending'];      
+        System.debug('line::::'+line);
+        set<Id> setLineIds = new set<Id>();
+        for(NiceLabel_Request_Line__c setLineId : line){
+            setLineIds.add(setLineId.Id);
+        }
+        Variable_Data_Mapping__c  varData = new Variable_Data_Mapping__c();
+        map<string,string> mapCsvHeader=new map<string,string>();
+        varData = [SELECT id,File_Column_A__c, PO_Field_A__c, File_Column_A_Destination_Indicator__c,
+                   File_Column_B__c, PO_Field_B__c, File_Column_B_Destination_Indicator__c,File_Column_C__c, PO_Field_C__c, File_Column_C_Destination_Indicator__c,
+                   File_Column_D__c, PO_Field_D__c, File_Column_D_Destination_Indicator__c,File_Column_E__c, PO_Field_E__c, File_Column_E_Destination_Indicator__c,
+                   File_Column_F__c, File_Column_F_Destination_indicator__c, PO_Field_F__c,File_Column_G__c, File_Column_G_Destination_Indicator__c, PO_Field_G__c,
+                   File_Column_H__c, File_column_H_Destination_Indicator__c, PO_Field_H__c,
+                   File_Column_I__c, File_Column_I_Destination_Indicator__c, PO_Field_I__c,
+                   File_Column_J__c, File_Column_J_Destination_Indicator__c, PO_Field_J__c,
+                   File_Column_K__c, File_Column_K_Destination_Indicator__c, PO_Field_K__c,
+                   File_Column_L__c, File_Column_L_Destination_Indicator__c, PO_Field_L__c,
+                   File_Column_N__c, File_Column_N_Destination_Indicator__c, PO_Field_N__c,
+                   File_Column_M__c, File_Column_M_Destination_Indicator__c, PO_Field_M__c,
+                   File_Column_O__c, File_Column_O_Destination_Indicator__c, PO_Field_O__c, File_Column_P__c, Include_First_Line__c, File_Column_P_Destination_Indicator__c, PO_Field_P__c,
+                   Parent_Object__c, Delimiter__c, CSV_Delimiter__c,PO_Field_Q__c, File_Column_Q__c, File_Column_Q_Destination_Indicator__c,
+                   File_Column_R__c, PO_Field_R__c, File_Column_R_Destination_Indicator__c,
+                   File_Column_S__c, PO_Field_S__c, File_Column_S_Destination_Indicator__c,
+                   File_Column_T__c, PO_Field_T__c, File_Column_T_Destination_Indicator__c,
+                   File_Column_U__c, PO_Field_U__c, File_Column_U_Destination_Indicator__c,
+                   File_Column_V__c, PO_Field_V__c, File_Column_V_Destination_Indicator__c,
+                   File_Column_W__c, PO_Field_W__c, File_Column_W_Destination_Indicator__c,
+                   File_Column_X__c, PO_Field_X__c, File_Column_X_Destination_Indicator__c,
+                   File_Column_Y__c, PO_Field_Y__c, File_Column_Y_Destination_Indicator__c,
+                   File_Column_Z__c, PO_Field_Z__c, File_Column_Z_Destination_Indicator__c,
+                   PO_Field_AA__c, File_Column_AA__c, File_Column_AA_Destination_Indicator__c,
+                   PO_Field_AB__c, File_Column_AB__c, File_Column_AB_Destination_Indicator__c,
+                   PO_Field_AC__c, File_Column_AC__c, File_Column_AC_Destination_Indicator__c,
+                   PO_Field_AD__c, File_Column_AD__c, File_Column_AD_Destination_Indicator__c,
+                   PO_Field_AE__c, File_Column_AE__c, File_Column_AE_Destination_Indicator__c,
+                   PO_Field_AF__c, File_Column_AF__c, File_Column_AF_Destination_Indicator__c,
+                   PO_Field_AG__c, File_Column_AG__c, File_Column_AG_Destination_Indicator__c,
+                   PO_Field_AH__c, File_Column_AH__c, File_Column_AH_Destination_Indicator__c,
+                   PO_Field_AI__c, File_Column_AI__c, File_Column_AI_Destination_Indicator__c,
+                   PO_Field_AJ__c, File_Column_AJ__c, File_Column_AJ_Destination_Indicator__c,
+                   PO_Field_AK__c, File_Column_AK__c, File_Column_AK_Destination_Indicator__c,
+                   PO_Field_AL__c, File_Column_AL__c, File_Column_AL_Destination_Indicator__c,
+                   PO_Field_AM__c, File_Column_AM__c, File_Column_AM_Destination_Indicator__c,
+                   PO_Field_AN__c, File_Column_AN__c, File_Column_AN_Destination_Indicator__c,
+                   PO_Field_AO__c, File_Column_AO__c, File_Column_AO_Destination_Indicator__c FROM Variable_Data_Mapping__c  where LabelPrinter_Detail__r.Name =: line[0].Printer_Name__c AND Retailer_Codes__r.Name=: line[0].Retailer_Code__c LIMIT 1];
+        //NiceLabel_Request_Line__c lineUpdate=new NiceLabel_Request_Line__c();
+        System.debug('varData Query>>>'+varData);
+        //Adding all the required csv column fields into map
+        System.debug('varData Query>>>'+varData);  
+        List<String> csvHeader = New List<String>();   
+        //Adding all the required csv column fields into map
+        if(varData.File_Column_A__c!=null&&varData.PO_Field_A__c!=null){
+            mapCsvHeader.put(varData.File_Column_A__c,varData.PO_Field_A__c);
+        }
+        if(varData.File_Column_B__c!=null&&varData.PO_Field_B__c!=null){
+            mapCsvHeader.put(varData.File_Column_B__c,varData.PO_Field_B__c);                       
+        }
+        if(varData.File_Column_C__c!=null&&varData.PO_Field_C__c!=null){
+            
+            mapCsvHeader.put(varData.File_Column_C__c,varData.PO_Field_C__c);
+        }
+        if(varData.File_Column_D__c!=null&&varData.PO_Field_D__c!=null){
+            mapCsvHeader.put(varData.File_Column_D__c,varData.PO_Field_D__c);
+        }
+        if(varData.File_Column_E__c!=null&&varData.PO_Field_E__c!=null){
+            mapCsvHeader.put(varData.File_Column_E__c,varData.PO_Field_E__c);
+        }
+        if(varData.File_Column_F__c!=null&&varData.PO_Field_F__c!=null){
+            mapCsvHeader.put(varData.File_Column_F__c,varData.PO_Field_F__c);
+        }
+        if(varData.File_Column_G__c!=null&&varData.PO_Field_G__c!=null){
+            mapCsvHeader.put(varData.File_Column_G__c,varData.PO_Field_G__c);
+        }
+        if(varData.File_Column_H__c!=null&&varData.PO_Field_H__c!=null){
+            mapCsvHeader.put(varData.File_Column_H__c,varData.PO_Field_H__c);
+        }
+        if(varData.File_Column_I__c!=null&&varData.PO_Field_I__c!=null){
+            mapCsvHeader.put(varData.File_Column_I__c,varData.PO_Field_I__c);
+        }
+        if(varData.File_Column_J__c!=null&&varData.PO_Field_J__c!=null){
+            mapCsvHeader.put(varData.File_Column_J__c,varData.PO_Field_J__c);
+        }
+        if(varData.File_Column_K__c!=null&&varData.PO_Field_K__c!=null){
+            mapCsvHeader.put(varData.File_Column_K__c,varData.PO_Field_K__c);
+        }
+        if(varData.File_Column_L__c!=null&&varData.PO_Field_L__c!=null){
+            mapCsvHeader.put(varData.File_Column_L__c,varData.PO_Field_L__c);
+        }
+        if(varData.File_Column_M__c!=null&&varData.PO_Field_M__c!=null){
+            mapCsvHeader.put(varData.File_Column_M__c,varData.PO_Field_M__c);
+        }
+        if(varData.File_Column_N__c!=null && varData.PO_Field_N__c!=null){
+            mapCsvHeader.put(varData.File_Column_N__c,varData.PO_Field_N__c);
+        }
+        if(varData.File_Column_O__c!=null&&varData.PO_Field_O__c!=null){
+            mapCsvHeader.put(varData.File_Column_O__c,varData.PO_Field_O__c);
+        }
+        if(varData.File_Column_P__c!=null&&varData.PO_Field_P__c!=null){
+            mapCsvHeader.put(varData.File_Column_P__c,varData.PO_Field_P__c);
+        }
+        if(varData.File_Column_Q__c!=null&&varData.PO_Field_Q__c!=null){
+            mapCsvHeader.put(varData.File_Column_Q__c,varData.PO_Field_Q__c);
+        }
+        //Added newly 31052024
+        if(varData.File_Column_R__c!=null&&varData.PO_Field_R__c!=null){
+            mapCsvHeader.put(varData.File_Column_R__c,varData.PO_Field_R__c);
+        }
+        if(varData.File_Column_S__c!=null&&varData.PO_Field_S__c!=null){
+            mapCsvHeader.put(varData.File_Column_S__c,varData.PO_Field_S__c);
+        }
+        if(varData.File_Column_T__c!=null&&varData.PO_Field_T__c!=null){
+            mapCsvHeader.put(varData.File_Column_T__c,varData.PO_Field_T__c);
+        }
+        if(varData.File_Column_U__c!=null&&varData.PO_Field_U__c!=null){
+            mapCsvHeader.put(varData.File_Column_U__c,varData.PO_Field_U__c);
+        }
+        if(varData.File_Column_V__c!=null&&varData.PO_Field_V__c!=null){
+            mapCsvHeader.put(varData.File_Column_V__c,varData.PO_Field_V__c);
+        }
+        if(varData.File_Column_W__c!=null&&varData.PO_Field_W__c!=null){
+            mapCsvHeader.put(varData.File_Column_W__c,varData.PO_Field_W__c);
+        }
+        if(varData.File_Column_X__c!=null&&varData.PO_Field_X__c!=null){
+            mapCsvHeader.put(varData.File_Column_X__c,varData.PO_Field_X__c);
+        }
+        if(varData.File_Column_Y__c!=null&&varData.PO_Field_Y__c!=null){
+            mapCsvHeader.put(varData.File_Column_Y__c,varData.PO_Field_Y__c);
+        }
+        if(varData.File_Column_Z__c!=null&&varData.PO_Field_Z__c!=null){
+            mapCsvHeader.put(varData.File_Column_Z__c,varData.PO_Field_Z__c);
+        }
+        if(varData.File_Column_AA__c!=null&&varData.PO_Field_AA__c!=null){
+            mapCsvHeader.put(varData.File_Column_AA__c,varData.PO_Field_AA__c);
+        }
+        if(varData.File_Column_AB__c!=null&&varData.PO_Field_AB__c!=null){
+            mapCsvHeader.put(varData.File_Column_AB__c,varData.PO_Field_AB__c);
+        }
+        if(varData.File_Column_AC__c!=null&&varData.PO_Field_AC__c!=null){
+            mapCsvHeader.put(varData.File_Column_AC__c,varData.PO_Field_AC__c);
+        }
+        if(varData.File_Column_AD__c!=null&&varData.PO_Field_AD__c!=null){
+            mapCsvHeader.put(varData.File_Column_AD__c,varData.PO_Field_AD__c);
+        }
+        if(varData.File_Column_AE__c!=null&&varData.PO_Field_AE__c!=null){
+            mapCsvHeader.put(varData.File_Column_AE__c,varData.PO_Field_AE__c);
+        }
+        if(varData.File_Column_AF__c!=null&&varData.PO_Field_AF__c!=null){
+            mapCsvHeader.put(varData.File_Column_AF__c,varData.PO_Field_AF__c);
+        }
+        if(varData.File_Column_AG__c!=null&&varData.PO_Field_AG__c!=null){
+            mapCsvHeader.put(varData.File_Column_AG__c,varData.PO_Field_AG__c);
+        }
+        if(varData.File_Column_AH__c!=null&&varData.PO_Field_AH__c!=null){
+            mapCsvHeader.put(varData.File_Column_AH__c,varData.PO_Field_AH__c);
+        }
+        if(varData.File_Column_AI__c!=null&&varData.PO_Field_AI__c!=null){
+            mapCsvHeader.put(varData.File_Column_AI__c,varData.PO_Field_AI__c);
+        }
+        if(varData.File_Column_AJ__c!=null&&varData.PO_Field_AJ__c!=null){
+            mapCsvHeader.put(varData.File_Column_AJ__c,varData.PO_Field_AJ__c);
+        }
+        if(varData.File_Column_AK__c!=null&&varData.PO_Field_AK__c!=null){
+            mapCsvHeader.put(varData.File_Column_AK__c,varData.PO_Field_AK__c);
+        }
+        if(varData.File_Column_AL__c!=null&&varData.PO_Field_AL__c!=null){
+            mapCsvHeader.put(varData.File_Column_AL__c,varData.PO_Field_AL__c);
+        }
+        if(varData.File_Column_AM__c!=null&&varData.PO_Field_AM__c!=null){
+            mapCsvHeader.put(varData.File_Column_AM__c,varData.PO_Field_AM__c);
+        }
+        if(varData.File_Column_AN__c!=null&&varData.PO_Field_AN__c!=null){
+            mapCsvHeader.put(varData.File_Column_AN__c,varData.PO_Field_AN__c);
+        }
+        if(varData.File_Column_AO__c!=null&&varData.PO_Field_AO__c!=null){
+            mapCsvHeader.put(varData.File_Column_AO__c,varData.PO_Field_AO__c);
+        }
+        // HEADERS ADDING INTO LIST 
+        for(string s:mapCsvHeader.keySet()){
+            csvHeader.add(s);
+        }                     
+        String lineVar;
+        if(String.isNotBlank(line[0].CSV_Demiliter__c) && line[0].CSV_Demiliter__c == 'Comma'){
+            String var = ',';
+            lineVar=var;
+            
+        }else if(String.isNotBlank(line[0].CSV_Demiliter__c) && line[0].CSV_Demiliter__c == 'Semicolon'){
+            String var = ';';
+            lineVar=var;
+        }else if(varData.CSV_Delimiter__c == 'Comma'){   
+            String var = ',';
+            lineVar=var;
+        }
+        else{               
+            String var = ';';
+            lineVar=var;
+        }
+        
+        if(String.isNotBlank(line[0].CSV_Demiliter__c) && line[0].CSV_Demiliter__c == 'Comma'){
+            String var = ',';
+            lineVar=var;
+            
+        }else if(String.isNotBlank(line[0].CSV_Demiliter__c) && line[0].CSV_Demiliter__c == 'Semicolon'){
+            String var = ';';
+            lineVar=var;
+        }else if(varData.CSV_Delimiter__c == 'Comma'){   
+            String var = ',';
+            lineVar=var;
+        }
+        else{
+            
+            String var = ';';
+            lineVar=var;
+        }
+        String lineItemValues = 'SELECT ' + varData.PO_Field_A__c +','+ varData.PO_Field_B__c+','+ varData.PO_Field_C__c+','+ varData.PO_Field_D__c+','+ varData.PO_Field_E__c +','+varData.PO_Field_F__c+','+ varData.PO_Field_G__c+','+ varData.PO_Field_H__c+','+ varData.PO_Field_I__c+','+ varData.PO_Field_J__c
+            +','+ varData.PO_Field_K__c+','+ varData.PO_Field_L__c+','+ varData.PO_Field_M__c+','+ varData.PO_Field_N__c+','+ varData.PO_Field_O__c+','+ varData.PO_Field_P__c+
+            +','+ varData.PO_Field_Q__c+ ','+ varData.PO_Field_R__c +','+ varData.PO_Field_S__c +','+ varData.PO_Field_T__c
+            +','+ varData.PO_Field_U__c+','+ varData.PO_Field_V__c+','+ varData.PO_Field_W__c +','+ varData.PO_Field_X__c
+            +','+ varData.PO_Field_Y__c+','+ varData.PO_Field_Z__c+','+ varData.PO_Field_AA__c+','+ varData.PO_Field_AB__c
+            +','+ varData.PO_Field_AC__c+','+ varData.PO_Field_AD__c+','+ varData.PO_Field_AE__c+','+ varData.PO_Field_AF__c
+            +','+ varData.PO_Field_AG__c+','+ varData.PO_Field_AH__c+','+ varData.PO_Field_AI__c+','+ varData.PO_Field_AJ__c
+            +','+ varData.PO_Field_AK__c+','+ varData.PO_Field_AL__c+','+ varData.PO_Field_AM__c+','+ varData.PO_Field_AN__c
+            +','+ varData.PO_Field_AO__c+' FROM '+varData.Parent_Object__c +' WHERE Id In : setLineIds';
+         system.debug('lineItemValues'+lineItemValues);
+        String finalQuery = lineItemValues.replaceAll(',null', '');
+        system.debug('finalQuery>>>'+finalQuery);
+        List<SObject> finalRowRecords = Database.query(finalQuery);
+        System.debug('finalRowRecords::::'+finalRowRecords);
+        Map<String, Object> fieldMap = new Map<String, Object>();
+        String csvvalue = '';
+        for (SObject record : finalRowRecords) { 
+            map<String, Object> recordFieldMap = record.getPopulatedFieldsAsMap();
+            System.debug('recordFieldMap::'+recordFieldMap);
+            List<String> recordCSVString = New List<String>();
+            for(String recordMapfields : mapCsvHeader.values()){
+                System.debug('recordMapfields:::'+recordMapfields);
+                if(recordFieldMap.containsKey(recordMapfields)){
+                    recordCSVString.add(String.valueOf(recordFieldMap.get(recordMapfields)));
+                }else{
+                    recordCSVString.add(' ');
+                }
+            }
+            csvvalue += String.join(recordCSVString,lineVar)+'\n';
+            System.debug('csvvalue:::'+csvvalue);
+            
+            System.debug('recordCSVString::::'+recordCSVString);
+            System.debug('fieldMap:::'+fieldMap);
+        }
+        System.debug('csvvalue:::'+csvvalue);
+        String csvheaderString = String.join(csvHeader,lineVar)+'\n';
+        
+        String finalCsv  = csvheaderString + csvvalue;
+        System.debug('finalCsv::::'+finalCsv); 
+        List<NiceLabel_Request_Line__c> updatelines = new List<NiceLabel_Request_Line__c>();
+        set<id> orderIds=new set<id>();
+        for(NiceLabel_Request_Line__c lineUpdate : line){
+            lineUpdate.NL_Line_Status__c  = 'Received';
+            lineUpdate.Id  = lineUpdate.Id;
+            updatelines.add(lineUpdate);
+            orderIds.add(lineUpdate.NiceLabel_Request__c);
+        }
+        update updatelines;
+        List<NiceLabel_Request__c> parentList = [select Id,(select Id ,NL_Line_Status__c From NiceLabel_Request_Lines__r) from NiceLabel_Request__c where Id In:orderIds];
+        System.debug('parentList'+parentList);
+        parentUpdateForMuelbuerPrinter(parentList);        
+        return finalCsv;
+    }
+    ///based on line(NiceLabel_Request_Line__c) status we are updating Order(NiceLabel_Request__c) 
+    public static void parentUpdateForMuelbuerPrinter(List<NiceLabel_Request__c> parentList){
+        List<NiceLabel_Request__c> updateList=new List<NiceLabel_Request__c>();
+        for (NiceLabel_Request__c parentRecord : parentList) {
+            System.debug('parentRecord'+parentRecord.Id);
+            Boolean openValue=false;
+            Boolean statusPening = false;
+            Boolean underManufacturing=false;
+            
+            
+            // Access child records related to the parent record
+            List<NiceLabel_Request_Line__c> childRecords = parentRecord.NiceLabel_Request_Lines__r;
+            
+            // Iterate through child records
+            for (NiceLabel_Request_Line__c n : childRecords) {
+                if(n.NL_Line_Status__c=='Open'||n.NL_Line_Status__c=='QC Reprint'){
+                    openValue=true;
+                }else if(n.NL_Line_Status__c=='Pending'){
+                    statusPening = true;
+                }else{
+                    underManufacturing=true; 
+                } 
+            } 
+            NiceLabel_Request__c line=new NiceLabel_Request__c(Id=parentRecord.Id);
+            System.debug('openValue  '+openValue+' underManufacturing '+underManufacturing);
+            if(statusPening == true){
+                line.MG_Order_Status__c='Pending Download';  
+            }else if(openValue==true&&underManufacturing==false || openValue==true&&underManufacturing==true){
+                line.MG_Order_Status__c='Open';
+            }else if(openValue==false && underManufacturing==True){
+                line.MG_Order_Status__c='Under Manufacturing';  
+            }
+            updateList.add(line);
+            System.debug('updateList  '+updateList);
+            
+        }         
+        update updateList; 
+        
+    }
+    //Non Decathlon Serial number generation
+    public static void RFIDNumGeneartion(List<Sales_Order_Line_Items__c> SoliList, Boolean IsRevised, Map<Sales_Order_Line_Items__c, boolean> ReviseMap, String retailcode) { 
+    }
+    
+}
